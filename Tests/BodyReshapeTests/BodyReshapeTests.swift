@@ -35,12 +35,46 @@ struct BodyReshapeTests {
         #expect(BodyPoseTrack.sample(at: 9, keyframes: [a, b])![.neck] == b[.neck])
     }
 
+    @Test("Reshape round-trips + gates on activity")
+    func reshapeModel() throws {
+        let r = BodyReshape(waistSlim: 0.5, chestSize: -0.3, shoulderWidth: 0.2, armSlim: 0.4,
+                            keyframes: [BodyPoseFrame(time: 0, joints: [.neck: BodyPoint(x: 0.5, y: 0.3)])])
+        #expect(try JSONDecoder().decode(BodyReshape.self, from: JSONEncoder().encode(r)) == r)
+        #expect(r.isActive)
+        #expect(!BodyReshape(keyframes: []).isActive)
+        #expect(!BodyReshape(keyframes: [BodyPoseFrame(time: 0, joints: [:])]).isActive)
+    }
+
+    @Test("Reshape filter renders at the same extent",
+          .enabled(if: ProcessInfo.processInfo.environment["BODY_RESHAPE_RENDER"] != nil))
+    func reshapeBeforeAfter() async throws {
+        let path = ProcessInfo.processInfo.environment["BODY_VIDEO"] ?? (NSHomeDirectory() + "/Downloads/talking-head.mov")
+        let video = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: video.path) else { print("[skip]"); return }
+        let keyframes = try await BodyPoseTracker.track(videoURL: video)
+        guard !keyframes.isEmpty else { print("[skip] no pose"); return }
+        let t = 2.0
+        let gen = AVAssetImageGenerator(asset: AVURLAsset(url: video))
+        gen.appliesPreferredTrackTransform = true
+        gen.requestedTimeToleranceBefore = .zero; gen.requestedTimeToleranceAfter = .zero
+        let before = CIImage(cgImage: try gen.copyCGImage(at: CMTime(seconds: t, preferredTimescale: 600), actualTime: nil))
+        let reshape = BodyReshape(waistSlim: 0.9, chestSize: 0.8, shoulderWidth: 0, armSlim: 0.5, keyframes: keyframes)
+        let after = BodyReshapeFilter(reshape: reshape)!.apply(before, at: t, sourceSize: before.extent.size)
+        #expect(after.extent == before.extent)
+        let ctx = CIContext(), cs = CGColorSpaceCreateDeviceRGB()
+        let dir = URL(fileURLWithPath: NSHomeDirectory() + "/Downloads")
+        try ctx.writePNGRepresentation(of: before, to: dir.appendingPathComponent("body_reshape_before.png"), format: .RGBA8, colorSpace: cs)
+        try ctx.writePNGRepresentation(of: after, to: dir.appendingPathComponent("body_reshape_after.png"), format: .RGBA8, colorSpace: cs)
+        print("WROTE body_reshape before/after")
+    }
+
     // MARK: - Spike: skeleton grid on a real clip (opt-in)
 
     @Test("Write a pose-skeleton debug PNG",
           .enabled(if: ProcessInfo.processInfo.environment["BODY_RESHAPE_RENDER"] != nil))
     func skeletonGrid() async throws {
-        let video = URL(fileURLWithPath: NSHomeDirectory() + "/Downloads/talking-head.mov")
+        let path = ProcessInfo.processInfo.environment["BODY_VIDEO"] ?? (NSHomeDirectory() + "/Downloads/talking-head.mov")
+        let video = URL(fileURLWithPath: path)
         guard FileManager.default.fileExists(atPath: video.path) else { print("[skip]"); return }
         let keyframes = try await BodyPoseTracker.track(videoURL: video)
         print("POSE frames: \(keyframes.count)")
