@@ -25,8 +25,11 @@ public struct BodyReshapeFilter: @unchecked Sendable {
     public func apply(_ image: CIImage, at time: TimeInterval, sourceSize: CGSize) -> CIImage {
         guard let k = BodyPoseTrack.sample(at: time, keyframes: reshape.keyframes) else { return image }
         let W = sourceSize.width, H = sourceSize.height
-        func px(_ p: BodyPoint) -> CGPoint { CGPoint(x: Double(p.x) * W, y: (1 - Double(p.y)) * H) }
         let extent = image.extent
+        // Honor a non-zero-origin extent (crops) — the pose is frame-normalized.
+        func px(_ p: BodyPoint) -> CGPoint {
+            CGPoint(x: extent.minX + Double(p.x) * W, y: extent.minY + (1 - Double(p.y)) * H)
+        }
 
         let ls = k[.leftShoulder].map(px), rs = k[.rightShoulder].map(px)
         let lh = k[.leftHip].map(px), rh = k[.rightHip].map(px)
