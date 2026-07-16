@@ -14,7 +14,13 @@ let package = Package(
         .library(name: "BodyReshape", targets: ["BodyReshape"]),
     ],
     targets: [
-        .target(name: "BodyReshape"),
+        .target(
+            name: "BodyReshape",
+            // CoreImage kernels need -fcikernel (SPM's default Metal build won't
+            // pass it), so the .metal is precompiled to the bundled .metallib.
+            exclude: ["Resources/BodyReshapeWarp.ci.metal"],
+            resources: [.copy("Resources/BodyReshapeWarp.metallib")]
+        ),
         .testTarget(name: "BodyReshapeTests", dependencies: ["BodyReshape"]),
     ]
 )
