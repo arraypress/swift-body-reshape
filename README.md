@@ -15,3 +15,9 @@ but the arms and lower torso are unreliable — reshape needs a half/full-body s
 ## Requirements
 
 macOS 26 / iOS 26, Swift 6.2.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Bundled or downloaded models keep their own licences; see the notes above where a model is named.
